@@ -1,0 +1,40 @@
+#!/bin/bash
+PATH="./:$PATH"
+
+DEBUG_SWITCH=
+[[ "$-" =~ "x" ]] && DEBUG_SWITCH="-x"
+
+inotifywait -rmq --excludei '\.ds_store' --format "%f" -e close_write "$HOME/Public/" | while read file;
+do
+    CONTENT="$file"
+    if [[ "$file" =~ ^[^\.] ]]
+    then
+        # stop previous notifications
+        pkill -f notify_from_file
+        bash "$DEBUG_SWITCH" notify_from_file -m "$CONTENT" -d 4 -t 'Public share' -y 'modified' &
+    fi
+done &
+
+inotifywait -rmq --excludei '\.ds_store' --format "%f" -e move "$HOME/Public/" | while read file;
+do
+    CONTENT="$file"
+    if [[ "$file" =~ ^[^\.] ]]
+    then
+        # stop previous notifications
+        pkill -f notify_from_file
+        bash "$DEBUG_SWITCH" notify_from_file -m "$CONTENT" -d 4 -t 'Public share' -y 'moved' &
+    fi
+done &
+
+inotifywait -rmq --excludei '\.ds_store' --format "%f" -e delete "$HOME/Public/" | while read file;
+do
+    CONTENT="$file"
+    if [[ "$file" =~ ^[^\.] ]]
+    then
+        # stop previous notifications
+        pkill -f notify_from_file
+        bash "$DEBUG_SWITCH" notify_from_file -m "$CONTENT" -d 4 -t 'Public share' -y 'removed' &
+    fi
+done &
+
+exit 0

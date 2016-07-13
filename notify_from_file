@@ -1,0 +1,86 @@
+#!/bin/bash
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This script buffers and then displays a notification via libnotify
+
+OPTIONS:
+   -h      Show this message
+   -b      Absolute path to the buffer file to use
+   -d      Delay in seconds before displaying the notifications
+   -m      New message to append to the buffer
+   -t      Title of the notification if the delay is exhausted
+   -y      The type of notification to group by
+EOF
+}
+
+
+DELAY=5
+
+BUFFER="/tmp/notification_buffer"
+if [[ ! -z "$TMPDIR" ]];then
+	BUFFER="$TMPDIR/notification_buffer"
+fi
+
+TITLE=
+TYPE=
+
+while getopts "b:d:hm:t:y:" OPTION
+do
+     case $OPTION in
+     		b)
+     			 if [[ ! -z "$OPTARG" ]]; then
+     			 	BUFFER=$OPTARG
+     			 fi
+     			 ;;
+         d)
+             DELAY=$OPTARG
+             ;;
+         h)
+             usage
+             exit 1
+             ;;
+         m)
+         	 NEW_MESSAGE=$OPTARG
+         	 ;;
+         t)
+           TITLE=$OPTARG
+           ;;
+         y)
+           TYPE=$OPTARG
+           ;;
+         ?)
+             usage
+             exit
+             ;;
+     esac
+done
+
+touch "$BUFFER"
+
+# clean the type param
+TYPE=$(echo "$TYPE" | sed -r 's/[^a-z0-9_ \-]//i')
+
+# if we have been given a new message append it to the buffer
+touch "$BUFFER.$TYPE"
+[[ -n "$NEW_MESSAGE" && -z $(grep "$NEW_MESSAGE" "$BUFFER.$TYPE") ]] && echo "$NEW_MESSAGE" >> "$BUFFER.$TYPE"
+
+sleep "$DELAY"
+for BUFFER_FILE in $(ls $BUFFER.*);do
+  BUFFER_TYPE=$(basename $BUFFER_FILE | sed -r 's/.*\.(.*)$/\1/')
+  # BUFFER_TYPE="$(tr '[:lower]' '[:upper]' <<< ${BUFFER_TYPE:0:1})${BUFFER_TYPE:1}" # upper case first letter
+
+  # check we have a buffer file to read from, inotify sometimes sends duplicate signals
+  if [[ -s "$BUFFER_FILE" ]];then
+    CONTENTS=$(cat "$BUFFER_FILE" | sed -r 's/^(.*)/\t\1/i')
+    # clear the buffer so subsequent signals contain blank messages
+    rm -f "$BUFFER_FILE"
+
+    # sanity check for some contents to avoid blank messages
+    [[ -n "$CONTENTS" ]] && notify-send "$TITLE" "${BUFFER_TYPE^}:\n$CONTENTS"
+  fi
+done
+
+exit 0
